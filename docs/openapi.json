@@ -1,0 +1,1011 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "is-cr-sdlc-ai-api-repository-event",
+    "description": "API para recibir los eventos de los repositorios para el flujo SDLC. Este servicio procesa eventos de Pull Requests y envía mensajes a tópicos de Pub/Sub para validaciones y sincronización de documentos.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Ernesto Laura",
+      "email": "support@interseguro.com"
+    },
+    "license": {
+      "name": "Propietaria"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Servidor de desarrollo local"
+    },
+    {
+      "url": "https://api.interseguro.com",
+      "description": "Servidor de producción"
+    }
+  ],
+  "tags": [
+    {
+      "name": "pr-execution",
+      "description": "Operaciones relacionadas con la ejecución de Pull Requests"
+    }
+  ],
+  "paths": {
+    "/v1/pr-execution": {
+      "post": {
+        "summary": "Recibe un evento de un repositorio",
+        "description": "Recibe un evento de un repositorio desde GitHub, puede ser un evento de Pull Request (opened, closed, reopened, etc.) o PUSH. Procesa el evento, registra la validación en base de datos y envía mensajes a tópicos de Pub/Sub según el tipo de acción.",
+        "operationId": "pullRequestEventHandler",
+        "tags": [
+          "pr-execution"
+        ],
+        "requestBody": {
+          "description": "Payload del evento de GitHub webhook",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrExecutionEntity"
+              },
+              "examples": {
+                "prOpened": {
+                  "summary": "Pull Request abierto",
+                  "value": {
+                    "action": "opened",
+                    "number": 123,
+                    "pull_request": {
+                      "url": "https://api.github.com/repos/org/repo/pulls/123",
+                      "id": 987654321,
+                      "html_url": "https://github.com/org/repo/pull/123",
+                      "number": 123,
+                      "state": "open",
+                      "title": "Feature: Add new functionality",
+                      "user": {
+                        "login": "developer",
+                        "id": 12345
+                      },
+                      "head": {
+                        "ref": "feature/new-feature",
+                        "sha": "abc123def456",
+                        "user": {
+                          "login": "developer",
+                          "id": 12345
+                        }
+                      },
+                      "base": {
+                        "ref": "main",
+                        "sha": "def456abc123",
+                        "user": {
+                          "login": "developer",
+                          "id": 12345
+                        }
+                      }
+                    },
+                    "repository": {
+                      "id": 123456,
+                      "name": "repo",
+                      "full_name": "org/repo"
+                    },
+                    "sender": {
+                      "login": "developer",
+                      "id": 12345
+                    }
+                  }
+                },
+                "prClosed": {
+                  "summary": "Pull Request cerrado y merged",
+                  "value": {
+                    "action": "closed",
+                    "number": 123,
+                    "pull_request": {
+                      "url": "https://api.github.com/repos/org/repo/pulls/123",
+                      "id": 987654321,
+                      "number": 123,
+                      "state": "closed",
+                      "merged": true,
+                      "merged_at": "2024-12-08T10:00:00Z"
+                    },
+                    "repository": {
+                      "id": 123456,
+                      "name": "repo",
+                      "full_name": "org/repo"
+                    },
+                    "sender": {
+                      "login": "developer",
+                      "id": 12345
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Evento procesado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrExecutionResponse"
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "success": true,
+                      "message": "Pull request event processed successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición inválida - Error en la validación del payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "validationError": {
+                    "value": {
+                      "error": "INVALID_PAYLOAD",
+                      "message": "El payload es requerido"
+                    }
+                  },
+                  "badRequest": {
+                    "value": {
+                      "error": "BAD_REQUEST",
+                      "message": "Invalid request data"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno del servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "internalError": {
+                    "value": {
+                      "error": "INTERNAL_ERROR",
+                      "message": "Error interno del servidor"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/liveness": {
+      "get": {
+        "summary": "Health check - Liveness",
+        "description": "Endpoint de liveness probe para Kubernetes. Verifica que la aplicación está viva y respondiendo.",
+        "operationId": "getLiveness",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Servicio está vivo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readiness": {
+      "get": {
+        "summary": "Health check - Readiness",
+        "description": "Endpoint de readiness probe para Kubernetes. Verifica que la aplicación está lista para recibir tráfico.",
+        "operationId": "getReadiness",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Servicio está listo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PrExecutionEntity": {
+        "type": "object",
+        "description": "Entidad que representa el evento de un Pull Request de GitHub",
+        "required": [
+          "action",
+          "number",
+          "pull_request",
+          "repository",
+          "sender"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Acción del evento (opened, closed, reopened, synchronize, etc.)",
+            "example": "opened"
+          },
+          "number": {
+            "type": "integer",
+            "description": "Número del Pull Request",
+            "example": 123
+          },
+          "pull_request": {
+            "$ref": "#/components/schemas/PullRequest"
+          },
+          "repository": {
+            "$ref": "#/components/schemas/Repository"
+          },
+          "sender": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "PullRequest": {
+        "type": "object",
+        "description": "Información del Pull Request",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL de la API del Pull Request",
+            "example": "https://api.github.com/repos/org/repo/pulls/123"
+          },
+          "id": {
+            "type": "integer",
+            "description": "ID único del Pull Request",
+            "example": 987654321
+          },
+          "node_id": {
+            "type": "string",
+            "example": "MDExOlB1bGxSZXF1ZXN0OTg3NjU0MzIx"
+          },
+          "html_url": {
+            "type": "string",
+            "description": "URL web del Pull Request",
+            "example": "https://github.com/org/repo/pull/123"
+          },
+          "diff_url": {
+            "type": "string",
+            "example": "https://github.com/org/repo/pull/123.diff"
+          },
+          "patch_url": {
+            "type": "string",
+            "example": "https://github.com/org/repo/pull/123.patch"
+          },
+          "issue_url": {
+            "type": "string",
+            "example": "https://api.github.com/repos/org/repo/issues/123"
+          },
+          "number": {
+            "type": "integer",
+            "description": "Número del Pull Request",
+            "example": 123
+          },
+          "state": {
+            "type": "string",
+            "description": "Estado del Pull Request",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "example": "open"
+          },
+          "locked": {
+            "type": "boolean",
+            "example": false
+          },
+          "title": {
+            "type": "string",
+            "description": "Título del Pull Request",
+            "example": "Feature: Add new functionality"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true,
+            "description": "Descripción del Pull Request"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-12-08T10:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-12-08T10:00:00Z"
+          },
+          "closed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": null
+          },
+          "merged_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": null
+          },
+          "merge_commit_sha": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "assignee": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "nullable": true
+          },
+          "assignees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          },
+          "requested_reviewers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          },
+          "requested_teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Team"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Label"
+            }
+          },
+          "milestone": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Milestone"
+              }
+            ],
+            "nullable": true
+          },
+          "draft": {
+            "type": "boolean",
+            "example": false
+          },
+          "commits_url": {
+            "type": "string"
+          },
+          "review_comments_url": {
+            "type": "string"
+          },
+          "review_comment_url": {
+            "type": "string"
+          },
+          "comments_url": {
+            "type": "string"
+          },
+          "statuses_url": {
+            "type": "string"
+          },
+          "head": {
+            "$ref": "#/components/schemas/GitRef"
+          },
+          "base": {
+            "$ref": "#/components/schemas/GitRef"
+          },
+          "_links": {
+            "$ref": "#/components/schemas/PullRequestLinks"
+          },
+          "author_association": {
+            "type": "string",
+            "example": "CONTRIBUTOR"
+          },
+          "auto_merge": {
+            "nullable": true
+          },
+          "active_lock_reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "merged": {
+            "type": "boolean",
+            "example": false
+          },
+          "mergeable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "rebaseable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "mergeable_state": {
+            "type": "string",
+            "example": "clean"
+          },
+          "merged_by": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "nullable": true
+          },
+          "comments": {
+            "type": "integer",
+            "example": 0
+          },
+          "review_comments": {
+            "type": "integer",
+            "example": 0
+          },
+          "maintainer_can_modify": {
+            "type": "boolean",
+            "example": false
+          },
+          "commits": {
+            "type": "integer",
+            "example": 1
+          },
+          "additions": {
+            "type": "integer",
+            "example": 10
+          },
+          "deletions": {
+            "type": "integer",
+            "example": 2
+          },
+          "changed_files": {
+            "type": "integer",
+            "example": 3
+          }
+        }
+      },
+      "Repository": {
+        "type": "object",
+        "description": "Información del repositorio de GitHub",
+        "required": [
+          "id",
+          "name",
+          "full_name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "ID único del repositorio",
+            "example": 123456
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nombre del repositorio",
+            "example": "repo"
+          },
+          "full_name": {
+            "type": "string",
+            "description": "Nombre completo del repositorio (organización/repositorio)",
+            "example": "org/repo"
+          },
+          "private": {
+            "type": "boolean",
+            "example": false
+          },
+          "owner": {
+            "$ref": "#/components/schemas/User"
+          },
+          "html_url": {
+            "type": "string",
+            "example": "https://github.com/org/repo"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "fork": {
+            "type": "boolean",
+            "example": false
+          },
+          "url": {
+            "type": "string",
+            "example": "https://api.github.com/repos/org/repo"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pushed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "git_url": {
+            "type": "string"
+          },
+          "ssh_url": {
+            "type": "string"
+          },
+          "clone_url": {
+            "type": "string"
+          },
+          "svn_url": {
+            "type": "string"
+          },
+          "homepage": {
+            "type": "string",
+            "nullable": true
+          },
+          "size": {
+            "type": "integer"
+          },
+          "stargazers_count": {
+            "type": "integer"
+          },
+          "watchers_count": {
+            "type": "integer"
+          },
+          "language": {
+            "type": "string"
+          },
+          "has_issues": {
+            "type": "boolean"
+          },
+          "has_projects": {
+            "type": "boolean"
+          },
+          "has_downloads": {
+            "type": "boolean"
+          },
+          "has_wiki": {
+            "type": "boolean"
+          },
+          "has_pages": {
+            "type": "boolean"
+          },
+          "has_discussions": {
+            "type": "boolean"
+          },
+          "forks_count": {
+            "type": "integer"
+          },
+          "mirror_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "open_issues_count": {
+            "type": "integer"
+          },
+          "license": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/License"
+              }
+            ],
+            "nullable": true
+          },
+          "allow_forking": {
+            "type": "boolean"
+          },
+          "is_template": {
+            "type": "boolean"
+          },
+          "web_commit_signoff_required": {
+            "type": "boolean"
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visibility": {
+            "type": "string"
+          },
+          "forks": {
+            "type": "integer"
+          },
+          "open_issues": {
+            "type": "integer"
+          },
+          "watchers": {
+            "type": "integer"
+          },
+          "default_branch": {
+            "type": "string",
+            "example": "main"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "Usuario de GitHub",
+        "required": [
+          "login",
+          "id"
+        ],
+        "properties": {
+          "login": {
+            "type": "string",
+            "description": "Nombre de usuario",
+            "example": "developer"
+          },
+          "id": {
+            "type": "integer",
+            "description": "ID único del usuario",
+            "example": 12345
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": "string"
+          },
+          "gravatar_id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "followers_url": {
+            "type": "string"
+          },
+          "following_url": {
+            "type": "string"
+          },
+          "gists_url": {
+            "type": "string"
+          },
+          "starred_url": {
+            "type": "string"
+          },
+          "subscriptions_url": {
+            "type": "string"
+          },
+          "organizations_url": {
+            "type": "string"
+          },
+          "repos_url": {
+            "type": "string"
+          },
+          "events_url": {
+            "type": "string"
+          },
+          "received_events_url": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "example": "User"
+          },
+          "user_view_type": {
+            "type": "string"
+          },
+          "site_admin": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "GitRef": {
+        "type": "object",
+        "description": "Referencia Git (branch) del Pull Request",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "org:feature/branch"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Nombre de la rama",
+            "example": "feature/branch"
+          },
+          "sha": {
+            "type": "string",
+            "description": "SHA del commit",
+            "example": "abc123def456"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "repo": {
+            "$ref": "#/components/schemas/Repository"
+          }
+        }
+      },
+      "PullRequestLinks": {
+        "type": "object",
+        "description": "Enlaces relacionados al Pull Request",
+        "properties": {
+          "self": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "html": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "issue": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "comments": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "review_comments": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "review_comment": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "commits": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "statuses": {
+            "$ref": "#/components/schemas/Link"
+          }
+        }
+      },
+      "Link": {
+        "type": "object",
+        "properties": {
+          "href": {
+            "type": "string"
+          }
+        }
+      },
+      "Team": {
+        "type": "object",
+        "description": "Equipo de GitHub",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "privacy": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "members_url": {
+            "type": "string"
+          },
+          "repositories_url": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string"
+          }
+        }
+      },
+      "Label": {
+        "type": "object",
+        "description": "Etiqueta del Pull Request",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "Milestone": {
+        "type": "object",
+        "description": "Milestone del Pull Request",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "labels_url": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/User"
+          },
+          "open_issues": {
+            "type": "integer"
+          },
+          "closed_issues": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "License": {
+        "type": "object",
+        "description": "Licencia del repositorio",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "spdx_id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PrExecutionResponse": {
+        "type": "object",
+        "description": "Respuesta de la ejecución de un evento de Pull Request",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indica si el evento fue procesado exitosamente",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje descriptivo del resultado",
+            "example": "Pull request event processed successfully"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "ID de la validación registrada",
+                "example": 1
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Respuesta de error",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Código de error",
+            "example": "INTERNAL_ERROR"
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje descriptivo del error",
+            "example": "Error interno del servidor"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "githubWebhook": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Hub-Signature-256",
+        "description": "Firma HMAC SHA256 del payload del webhook de GitHub"
+      }
+    }
+  }
+}
