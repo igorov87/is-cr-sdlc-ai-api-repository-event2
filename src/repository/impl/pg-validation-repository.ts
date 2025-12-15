@@ -21,7 +21,7 @@ export class PGValidationRepository implements DbValidationRepository {
      */
     async saveValidation(validation: ValidationToSave): Promise<{ success: boolean, message?: string, id?: number }> {
         getLogger(this.ctx).info(`Inicio del metodo PGValidationRepository.saveValidation`);
-        
+
         try {
             const modelData: Partial<PrValidationModel> = {
                 repository_name: validation.repositoryName,
@@ -36,14 +36,15 @@ export class PGValidationRepository implements DbValidationRepository {
             getLogger(this.ctx).info(`Datos del registro de PR validation: ${JSON.stringify(modelData)}`);
 
             const prValidation = this.repository.create(modelData);
+            getLogger(this.ctx).info(`Registro de PR validation creado: ${JSON.stringify(prValidation)}`);
             const result = await this.repository.save(prValidation);
             getLogger(this.ctx).info(`Resultado de la inserción del registro de PR validation: ${JSON.stringify(result)}`);
-            
+
             return { success: true, message: 'Registro de PR validation creado exitosamente', id: result.id };
         } catch (error: unknown) {
             // Log completo con stack trace para debugging
             getLogger(this.ctx).error({ err: error }, 'Error al crear registro de PR validation');
-            
+
             // Mensaje seguro para retornar
             const errorMessage = getErrorMessage(error);
             return { success: false, message: `Error al crear registro de PR validation: ${errorMessage}` };
