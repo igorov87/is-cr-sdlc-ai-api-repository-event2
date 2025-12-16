@@ -60,7 +60,7 @@ export class PrExecutionService {
                     if (targetCompliance) {
                         const actionResult = await this.updateAction(prExecutionData);
                         response.success = actionResult;
-                        response.message = actionResult? "Actualización publicada correctamente" : "Error al publicar la actualización";
+                        response.message = actionResult ? "Actualización publicada correctamente" : "Error al publicar la actualización";
                     }
                     else {
                         response.success = false;
@@ -68,6 +68,7 @@ export class PrExecutionService {
                     }
                     break;
                 default:
+                    getLogger(this.ctx).info(`No se tiene soportada la acción: ${action}`);
                     response.success = false;
                     response.message = `Acción no válida: ${action}`;
             }
@@ -77,7 +78,7 @@ export class PrExecutionService {
         } catch (error: unknown) {
             // Log completo con stack trace para debugging
             getLogger(this.ctx).error({ err: error }, 'Error al crear la ejecución de la PR');
-            
+
             return {
                 success: false,
                 message: 'Error al procesar el evento de Pull Request'
@@ -100,7 +101,7 @@ export class PrExecutionService {
                 return { success: false, id: undefined };
             }
 
-            const validationMessage: ValidationTopicMessage =  ServiceMappers.toValidationTopicMessage(prExecutionData, resultInsert.id);
+            const validationMessage: ValidationTopicMessage = ServiceMappers.toValidationTopicMessage(prExecutionData, resultInsert.id);
 
             getLogger(this.ctx).info(`Enviando mensaje al topic de validación`);
             const resultPublish = await this.topicPublisher.publishValidationMessage(validationMessage);
@@ -109,7 +110,7 @@ export class PrExecutionService {
         } catch (error: unknown) {
             // Log completo con stack trace para debugging
             getLogger(this.ctx).error({ err: error }, 'Error al publicar el mensaje de validación');
-            
+
             return { success: false, id: undefined };
         }
     }
@@ -138,7 +139,7 @@ export class PrExecutionService {
         } catch (error: unknown) {
             // Log completo con stack trace para debugging
             getLogger(this.ctx).error({ err: error }, 'Error al publicar el mensaje de actualización');
-            
+
             return false;
         }
     }
