@@ -50,4 +50,26 @@ export class PGValidationRepository implements DbValidationRepository {
             return { success: false, message: `Error al crear registro de PR validation: ${errorMessage}` };
         }
     }
+
+    /**
+     * Obtiene todos los registros de validación de PR de la base de datos
+     * @returns Array de registros de validación de PR
+     */
+    async getAllValidations(): Promise<PrValidationModel[]> {
+        getLogger(this.ctx).info(`Inicio del metodo PGValidationRepository.getAllValidations`);
+
+        try {
+            const validations = await this.repository.find({
+                order: {
+                    validation_created_at: 'DESC'
+                }
+            });
+
+            getLogger(this.ctx).info(`Se encontraron ${validations.length} registros de PR validation`);
+            return validations;
+        } catch (error: unknown) {
+            getLogger(this.ctx).error({ err: error }, 'Error al obtener registros de PR validation');
+            throw error;
+        }
+    }
 }

@@ -20,12 +20,12 @@ export class PrExecutionController {
     const ctx = this.getContext(request);
     getLogger(ctx).debug(`Inicio del metodo PrExecutionController.pullRequestEventHandler`);
     try {
-      
+
       const topicPublisher = new TopicPublisherPubSub(ctx);
       const dbValidationRepository = new PGValidationRepository(ctx);
 
       this.service = new PrExecutionService(topicPublisher, ctx, dbValidationRepository);
-      
+
       const payload = request.payload as PrExecutionEntity;
       getLogger(ctx).trace(`Payload: ${JSON.stringify(payload)}`);
 
@@ -47,11 +47,44 @@ export class PrExecutionController {
     } catch (error: unknown) {
       // Log completo con stack trace para debugging
       getLogger(ctx).error({ err: error }, 'Error en PrExecutionController.pullRequestEventHandler');
-      
+
       // Respuesta genérica al cliente (sin detalles técnicos)
       return h.response({
         error: 'INTERNAL_ERROR',
         message: 'Error interno del servidor'
+      }).code(500);
+    }
+  }
+
+  /**
+   * Obtiene todos los registros de ejecución de PR
+   * @param request - Solicitud HTTP
+   * @param h - ResponseToolkit
+   * @returns Response con array de registros
+   */
+  async getAllPrExecutions(request: Request, h: ResponseToolkit) {
+    const ctx = this.getContext(request);
+    getLogger(ctx).debug(`Inicio del metodo PrExecutionController.getAllPrExecutions`);
+
+    try {
+      const topicPublisher = new TopicPublisherPubSub(ctx);
+      const dbValidationRepository = new PGValidationRepository(ctx);
+
+      this.service = new PrExecutionService(topicPublisher, ctx, dbValidationRepository);
+
+      const validations = await this.service.getAllPrExecutions();
+
+      return h.response({
+        success: true,
+        data: validations,
+        count: validations.length
+      }).code(200);
+    } catch (error: unknown) {
+      getLogger(ctx).error({ err: error }, 'Error en PrExecutionController.getAllPrExecutions');
+
+      return h.response({
+        error: 'INTERNAL_ERROR',
+        message: 'Error al obtener los registros de PR'
       }).code(500);
     }
   }

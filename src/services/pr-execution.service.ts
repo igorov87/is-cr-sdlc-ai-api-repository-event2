@@ -26,7 +26,7 @@ export class PrExecutionService {
         try {
             const action = prExecutionData.action;
             const targetBranch = prExecutionData.pull_request.base.ref;
-            const targetBranches = env.TARGET_BRANCHES.split('|').map(branch => branch.trim().toLowerCase()) || [];
+            const targetBranches = env.TARGET_BRANCHES.split('|').map((branch: string) => branch.trim().toLowerCase()) || [];
 
             const targetCompliance = targetBranches.some((branch: string) => targetBranch.startsWith(branch));
             getLogger(this.ctx).info(`Target Branches: ${targetBranches}`);
@@ -60,7 +60,7 @@ export class PrExecutionService {
                     if (targetCompliance) {
                         const actionResult = await this.updateAction(prExecutionData);
                         response.success = actionResult;
-                        response.message = actionResult? "Actualización publicada correctamente" : "Error al publicar la actualización";
+                        response.message = actionResult ? "Actualización publicada correctamente" : "Error al publicar la actualización";
                     }
                     else {
                         response.success = false;
@@ -77,7 +77,7 @@ export class PrExecutionService {
         } catch (error: unknown) {
             // Log completo con stack trace para debugging
             getLogger(this.ctx).error({ err: error }, 'Error al crear la ejecución de la PR');
-            
+
             return {
                 success: false,
                 message: 'Error al procesar el evento de Pull Request'
@@ -100,7 +100,7 @@ export class PrExecutionService {
                 return { success: false, id: undefined };
             }
 
-            const validationMessage: ValidationTopicMessage =  ServiceMappers.toValidationTopicMessage(prExecutionData, resultInsert.id);
+            const validationMessage: ValidationTopicMessage = ServiceMappers.toValidationTopicMessage(prExecutionData, resultInsert.id);
 
             getLogger(this.ctx).info(`Enviando mensaje al topic de validación`);
             const resultPublish = await this.topicPublisher.publishValidationMessage(validationMessage);
@@ -109,7 +109,7 @@ export class PrExecutionService {
         } catch (error: unknown) {
             // Log completo con stack trace para debugging
             getLogger(this.ctx).error({ err: error }, 'Error al publicar el mensaje de validación');
-            
+
             return { success: false, id: undefined };
         }
     }
@@ -138,8 +138,24 @@ export class PrExecutionService {
         } catch (error: unknown) {
             // Log completo con stack trace para debugging
             getLogger(this.ctx).error({ err: error }, 'Error al publicar el mensaje de actualización');
-            
+
             return false;
+        }
+    }
+
+    /**
+     * Obtiene todos los registros de validación de PR
+     * @returns Array de registros de validación de PR
+     */
+    async getAllPrExecutions() {
+        getLogger(this.ctx).info(`Inicio del metodo PrExecutionService.getAllPrExecutions`);
+
+        try {
+            const validations = await this.dbValidationRepository.getAllValidations();
+            return validations;
+        } catch (error: unknown) {
+            getLogger(this.ctx).error({ err: error }, 'Error al obtener los registros de PR');
+            throw error;
         }
     }
 }
