@@ -43,4 +43,15 @@ export const RepositoryEventRoutes = (server: Server) => {
       tags: ['api', 'pr-execution', 'sdlc'],
     }
   });
+
+  server.route({
+    method: 'GET',
+    path: '/v1/pr-execution',
+    options: {
+      handler: prExecutionController.getAllPrExecutions.bind(prExecutionController),
+      description: 'Obtiene todos los registros de ejecución de PR',
+      notes: 'Devuelve un array con todos los registros de validación de PRs almacenados en la base de datos',
+      tags: ['api', 'pr-execution', 'sdlc'],
+    }
+  });
 };
